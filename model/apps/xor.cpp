@@ -1,26 +1,30 @@
 #include "NeuralNetwork.hpp"
+
 #include <cstring>
+#include <iostream>
+#include <limits>
+#include <string>
 
 int main(int argc, char* argv[]) {
 
     bool live = argc == 2 && std::strcmp(argv[1], "--live") == 0;
-    std::cout << argc << " " << argv[1] << " " << live << std::endl;
     
-    if (argc > 3 || !live){
+    if (argc > 2 || !live){
         std::cerr << "Usage" << argv[0] << " <--live>\n";
         return 1; 
     }
     
-    std::vector<std::vector<double>> trainingInputs = {{0, 0}, {0, 1}, {1, 0}, {1,1}};
-    std::vector<std::vector<double>> outputs = {{0}, {1}, {1}, {0}};
-    std::vector<int> layers = {2, 2, 1};
-    NeuralNetwork nn(layers);
+    Matrix X = {{0, 0}, {0, 1}, {1, 0}, {1, 1}};
+    Matrix Y = {{0}, {1}, {1}, {0}};
 
-    nn.train(trainingInputs, outputs);
+    NeuralNetwork nn({2, 4, 1}, Activation::Sigmoid, Activation::Sigmoid, 0.5);
+    nn.train(X, Y, 5000, nullptr, nullptr, 1000);
 
-    if (live){
-        while(1){
-            std::cout << "Input (e.g 1 0)\n";
+    for (const auto& x : X)
+        std::cout << "XOR(" << x[0] << ", " << x[1] << ") -> " << nn.predict(x)[0] << '\n';
+
+    while (live) {
+        std::cout << "Input (e.g 1 0)\n";
             int a, b;
 
             if (!(std::cin >> a)) {
@@ -53,42 +57,7 @@ int main(int argc, char* argv[]) {
             std::cout << "NN output: " << prob[0]
                       << " -> XOR(" << a << ", " << b << ") = "
                       << prediction << "\n\n";
-        }
     }
 
-
-    Neuron n(5);
-    n.printNeuron();
-
-    std::random_device rnd_device;
-    std::mt19937 mersenne_engine {rnd_device()};
-    std::uniform_real_distribution<> dist(0.0, 1.0);
-
-    auto gen = [&]() {
-        return dist(mersenne_engine);
-    };
-
-    std::vector<double> inputs(5);
-    std::generate(inputs.begin(), inputs.end(), gen);
-
-    double output = n.activate(inputs);
-    std::cout << "output: " << output << std::endl;
-
-    Layer l(2, 5);
-    l.printLayer();
-
-    
-
-    std::vector<std::vector<double>> out;
-    for (auto in : trainingInputs){
-        out.emplace_back(nn.predict(in));
-    }
-
-    for (auto o : out){
-        for (auto act : o){
-            std::cout << act << std::endl;
-        }
-    }
-
-    return 0;    
+    return 0;  
 }

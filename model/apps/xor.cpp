@@ -51,7 +51,7 @@ int main(int argc, char* argv[]) {
                 continue;
             }
 
-            std::vector<double> prob = nn.predict({a, b});
+            std::vector<double> prob = nn.predict({static_cast<double>(a), static_cast<double>(b)});
             int prediction = prob[0] > 0.5 ? 1: 0;
 
             std::cout << "NN output: " << prob[0]

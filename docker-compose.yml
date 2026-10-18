@@ -1,0 +1,44 @@
+x-pipeline: &pipeline
+  build: 
+    context: .
+    args:
+      APP_UID: ${HOST_UID:-1000}
+  image: nba-predictor:${VERSION:-local}
+  volumes:
+    - ./collector/data/raw:/app/collector/data/raw:ro
+    - processed:/app/collector/data/processed
+    - ./artifacts:/artifacts
+
+services:
+  build-dataset:
+    <<: *pipeline
+    command: ["python", "-m", "collector", "build"]
+
+  train:
+    <<: *pipeline
+    depends_on:
+      build-dataset:
+        condition: service_completed_successfully
+    command:
+      - train
+      - --data
+      - /app/collector/data/processed
+      - --out
+      - /artifacts/${VERSION:-local}
+      - --seed
+      - "42"
+
+  predict:
+    <<: *pipeline
+    depends_on:
+      train:
+        condition: service_completed_successfully
+    command:
+      - predict
+      - --model
+      - /artifacts/${VERSION:-local}
+      - --input
+      - /app/collector/data/processed/test.csv
+
+volumes:
+  processed:

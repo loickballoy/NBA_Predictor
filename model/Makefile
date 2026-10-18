@@ -8,10 +8,10 @@ BIN		?= bin
 
 LIB_SRC		:= $(wildcard src/*.cpp)
 LIB_OBJ		:= $(LIB_SRC:%.cpp=$(BUILD)/%.o)
-APPS		:= xor nba
+APPS		:= xor train predict test_model
 TARGETS		:= $(APPS:%=$(BIN)/%)
 
-.PHONY: all debug run-xor run-nba clean
+.PHONY: all debug test run-xor clean
 
 .SECONDARY:
 
@@ -23,7 +23,7 @@ $(BIN)/%: $(BUILD)/apps/%.o $(LIB_OBJ)
 
 $(BUILD)/%.o: %.cpp
 	@mkdir -p $(@D)
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $^ -o $@
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
 
 debug:
 	$(MAKE) BUILD=build/debug BIN=bin/debug \
@@ -33,8 +33,8 @@ debug:
 run-xor: $(BIN)/xor
 	./$(BIN)/xor --live
  
-run-nba: $(BIN)/nba
-	./$(BIN)/nba ../collector/data/processed
+test: $(BIN)/test_model
+	./$(BIN)/test_model
  
 clean:
 	rm -rf build bin

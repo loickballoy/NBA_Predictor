@@ -27,7 +27,7 @@ KEYS = ["PLAYER_ID", "START_YEAR"]
 def prepare(df: pd.DataFrame) -> pd.DataFrame:
     d = df.copy()
 
-    for col in TOTALS_TO_PER_GAME + ["GP", "GS", "PLAYER_GAE"]:
+    for col in TOTALS_TO_PER_GAME + ["GP", "GS", "PLAYER_AGE"]:
         if col in d.columns:
             d[col] = pd.to_numeric(d[col], errors="coerce")
 
@@ -82,17 +82,20 @@ def build_windows(df: pd.DataFrame) -> pd.DataFrame:
 
     return w[id_cols + x_cols + y_cols].reset_index(drop=True)
 
-def export_splits(w: pd.date_range, val_from: int = 2020, test_from: int = 2023, out_dir: Path = OUT_DIR) -> None:
-    out_dir.mkdir(parents=True, exist_ok=True)
+def export_splits(w: pd.DataFrame, val_from: int = 2020, test_from: int = 2023, out_dir: Path = OUT_DIR) -> None:
     year = w["id_TARGET_YEAR"]
     splits = {
         "train": w[year < val_from],
         "val": w[(year >= val_from) & (year < test_from)],
         "test": w[year >= test_from]
     }
+
+    empty = [name for name, part in splits.items() if part.empty()]
+    if empty:
+        raise ValueError(f"Empty Splits: {empty}, ajust val_from and test_from")
+
+    out_dir.mkdir(parents=True, exist_ok=True)
     for name, part in splits.items():
-        if part.empty:
-            raise ValueError(f"Le split '{name}' est vide")
         path = out_dir / f"{name}.csv"
         part.to_csv(path, index=False, float_format="%.6g")
         print(f"{name:5s} : {len(part):6d} lignes -> {path}")

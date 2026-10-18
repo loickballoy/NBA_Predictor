@@ -1,5 +1,43 @@
 #include "NeuralNetwork.hpp"
 
+static void write_u32(std::ostream& out, uint32_t value) {
+    out.write(reinterpret_cast<const char *>(&value), sizeof(value));
+}
+
+static uint32_t read_u32(std::istream& in){
+    uint32_t value = 0;
+    in.read(reinterpret_cast<char*>(&value), sizeof(value));
+    if (!in) throw std::runtime_error("model.bin invalid");
+    return value;
+}
+
+static void write_f64(std::ostream& out, double value) {
+    out.write(reinterpret_cast<const char*>(&value), sizeof(value));
+}
+
+static double read_f64(std::istream& in){
+    double value = 0.0;
+    in.read(reinterpret_cast<char*>(&value), sizeof(value));
+    if (!in) throw std::runtime_error("model.bin invalid");
+    return value;
+}
+
+// Garde-fou : un fichier corrompu ne doit pas provoquer une allocation de plusieurs Go.
+static constexpr uint32_t MAX_COUNT = 1u << 20;
+
+static uint32_t read_count(std::istream& in) {
+    uint32_t n = read_u32(in);
+    if (n == 0 || n > MAX_COUNT) throw std::runtime_error("model.bin invalid (size out of range)");
+    return n;
+}
+
+static Activation read_activation(std::istream& in){
+    uint32_t raw = read_u32(in);
+    if (raw > static_cast<uint32_t>(Activation::Linear))
+        throw std::runtime_error("Unknown activation in model.bin");
+    return static_cast<Activation>(raw);
+}
+
 Neuron::Neuron(int input_number, Activation activation, std::mt19937& rng)
     : weights(input_number), activation(activation)
 {
@@ -47,9 +85,29 @@ double Neuron::derivative() const{
 
 void Neuron::update_weights(double delta, double learning_rate){
     this->bias += learning_rate * delta;
-    for (int i = 0; i < inputs.size(); i++){
+    for (size_t i = 0; i < inputs.size(); i++){
         this->weights[i] += learning_rate * delta * inputs[i];
     }
+}
+
+void Neuron::save_binary(std::ostream& out) const {
+    write_u32(out, static_cast<uint32_t>(activation));
+    write_u32(out, static_cast<uint32_t>(weights.size()));
+
+    write_f64(out, bias);
+    for (double w : weights)
+        write_f64(out, w);
+}
+
+void Neuron::load_binary(std::istream& in) {
+    activation = read_activation(in);
+
+    uint32_t n = read_count(in);
+    weights.resize(n);
+
+    bias = read_f64(in);
+    for (double& w : weights)
+        w = read_f64(in);
 }
 
 // LAYER
@@ -85,6 +143,29 @@ std::vector<double> Layer::backward(const std::vector<double>& errors, double le
 void Layer::printLayer(){
     for (auto neuron : this->neurons){
         neuron.printNeuron();
+    }
+}
+
+void Layer::save_binary(std::ostream& out) const {
+    write_u32(out, static_cast<uint32_t>(neurons.size()));
+
+    for (const Neuron& neuron : neurons){
+        neuron.save_binary(out);
+    }
+}
+
+void Layer::load_binary(std::istream& in) {
+    uint32_t neuron_count = read_count(in);
+
+    neurons.clear();
+    neurons.reserve(neuron_count);
+
+    for (uint32_t i = 0; i < neuron_count; i++){
+        Neuron neuron(0, Activation::Linear);
+        neuron.load_binary(in);
+        if (!neurons.empty() && neuron.weights.size() != neurons[0].weights.size())
+            throw std::runtime_error("model.bin invalid (neurons of one layer have different input sizes)");
+        neurons.push_back(std::move(neuron));
     }
 }
 
@@ -177,3 +258,58 @@ void NeuralNetwork::train(const Matrix& X, const Matrix& Y, int epochs,
     }
 }
 
+void NeuralNetwork::save_binary(const std::string& path) const {
+    std::ofstream out(path, std::ios::binary);
+
+    if (!out) throw std::runtime_error("Can't write into "+path);
+
+    const char magic[4] = {'N', 'N', 'B', '1'};
+    out.write(magic, sizeof(magic));
+
+    write_u32(out, static_cast<uint32_t>(layers.size()));
+
+    for (const Layer& layer : layers){
+        layer.save_binary(out);
+    }
+
+    if (!out) throw std::runtime_error("Error while writing into "+path);
+}
+
+void NeuralNetwork::load_binary(const std::string& path) {
+    std::ifstream in(path, std::ios::binary);
+
+    if (!in)
+        throw std::runtime_error("Impossible de lire " + path);
+
+    char magic[4];
+    in.read(magic, sizeof(magic));
+
+    if (!in || magic[0] != 'N' || magic[1] != 'N' ||
+        magic[2] != 'B' || magic[3] != '1') {
+        throw std::runtime_error(path + " n'est pas un model.bin valide");
+    }
+
+    uint32_t layer_count = read_count(in);
+
+    layers.clear();
+    layers.reserve(layer_count);
+
+    for (uint32_t i = 0; i < layer_count; ++i) {
+        layers.emplace_back(0, 0, Activation::Linear, rng); // placeholder
+        layers.back().load_binary(in);
+    }
+
+    // Chaque couche doit recevoir exactement la sortie de la précédente.
+    for (size_t i = 1; i < layers.size(); ++i)
+        if (layers[i].input_size() != layers[i - 1].size())
+            throw std::runtime_error(path + " : couches incompatibles (" + std::to_string(i) + ")");
+
+    if (in.peek() != std::char_traits<char>::eof())
+        throw std::runtime_error(path + " : données inattendues après la fin du modèle");
+}
+
+std::vector<int> NeuralNetwork::architecture() const {
+    std::vector<int> sizes{static_cast<int>(input_size())};
+    for (const Layer& layer : layers) sizes.push_back(static_cast<int>(layer.size()));
+    return sizes;
+}

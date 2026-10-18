@@ -1,9 +1,23 @@
 #include "Dataset.hpp"
 
 #include <cmath>
+#include <iomanip>
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
+
+static std::string json_array(const std::vector<double>& values) {
+    std::ostringstream out;
+    out << '[';
+
+    for (size_t i = 0; i < values.size(); ++i) {
+        if (i) out << ',';
+        out << std::setprecision(17) << values[i];
+    }
+
+    out << ']';
+    return out.str();
+}
 
 static std::vector<std::string> split_csv_line(const std::string& line)
 {
@@ -18,7 +32,7 @@ static std::vector<std::string> split_csv_line(const std::string& line)
     return fields;
 }
 
-Dataset load_csv(const std::string& path)
+Dataset load_csv(const std::string& path, bool require_targets)
 {
     std::ifstream file(path);
     if (!file) throw std::runtime_error("Impossible d'ouvrir " + path);
@@ -35,8 +49,10 @@ Dataset load_csv(const std::string& path)
         else if (name.rfind("y_", 0) == 0) { y_idx.push_back(i); ds.target_names.push_back(name); }
         else if (name.rfind("id_", 0) == 0) { id_idx.push_back(i); ds.id_names.push_back(name); }
     }
-    if (x_idx.empty() || y_idx.empty())
-        throw std::runtime_error(path + " : aucune colonne x_* ou y_* dans l'en-tête");
+    if (x_idx.empty())
+        throw std::runtime_error(path + " : aucune colonne x_* dans l'en-tête");
+    if (require_targets && y_idx.empty())
+        throw std::runtime_error(path + " : aucune colonne y_* dans l'en-tête");
 
     size_t line_no = 1;
     while (std::getline(file, line)) {
@@ -108,4 +124,62 @@ std::vector<double> Standardizer::inverse(const std::vector<double>& row) const
 void Standardizer::transform_inplace(Matrix& data) const
 {
     for (auto& row : data) row = transform(row);
+}
+
+std::string Standardizer::to_json() const {
+    return "{\"mean\": " + json_array(mean) + ", \"stddev\": " + json_array(stddev) + "}";
+}
+
+void Standardizer::from_json(const std::string& content) {
+    auto extract = [&](const std::string& key) {
+        size_t key_pos = content.find("\"" + key + "\"");
+        if (key_pos == std::string::npos)
+            throw std::runtime_error("Cle manquante : " + key);
+
+        size_t open = content.find('[', key_pos);
+        size_t close = content.find(']', open);
+
+        if (open == std::string::npos || close == std::string::npos)
+            throw std::runtime_error("Tableau JSON invalide pour " + key);
+
+        std::vector<double> values;
+        std::stringstream values_stream(content.substr(open + 1, close - open - 1));
+        std::string token;
+
+        while (std::getline(values_stream, token, ',')) {
+            try {
+                values.push_back(std::stod(token));
+            } catch (...) {
+                throw std::runtime_error("Valeur JSON invalide dans " + key);
+            }
+        }
+
+        return values;
+    };
+
+    mean = extract("mean");
+    stddev = extract("stddev");
+
+    if (mean.empty() || mean.size() != stddev.size())
+        throw std::runtime_error("mean et stddev doivent avoir la meme taille");
+}
+
+void Standardizer::save_json(const std::string& path) const {
+    std::ofstream out(path);
+
+    if (!out)
+        throw std::runtime_error("Impossible d'ecrire " + path);
+
+    out << to_json() << "\n";
+}
+
+void Standardizer::load_json(const std::string& path) {
+    std::ifstream in(path);
+
+    if (!in)
+        throw std::runtime_error("Impossible de lire " + path);
+
+    std::string content((std::istreambuf_iterator<char>(in)),
+                         std::istreambuf_iterator<char>());
+    from_json(content);
 }

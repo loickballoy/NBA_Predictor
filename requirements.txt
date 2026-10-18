@@ -1,6 +1,7 @@
-jsonschema==4.26.0
-jsonschema-specifications==2025.9.1
+ipykernel==7.4.0
+matplotlib==3.11.2
 nba_api==1.11.4
-numpy==2.5.2
-pandas==3.0.5
-
+numpy==2.5.3
+pandas==3.0.6
+pyarrow==25.0.1
+pytest==9.1.1

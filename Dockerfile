@@ -29,6 +29,7 @@ RUN pip install -r requirements.txt
 
 COPY collector/ ./collector/
 COPY pipeline/ ./pipeline/
+COPY api/ ./api/
 COPY --from=builder /src/model/bin/train /src/model/bin/predict /app/bin/
 
 ARG APP_UID=1000

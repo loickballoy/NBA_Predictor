@@ -6,3 +6,6 @@ pandas==3.0.6
 pyarrow==25.0.1
 pytest==9.1.1
 google-cloud-storage==3.17.1
+fastapi==0.148.0
+httpx==0.28.1
+uvicorn==0.54.0

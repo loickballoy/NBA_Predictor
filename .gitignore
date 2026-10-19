@@ -38,3 +38,10 @@ model/build/
 model/bin/
 
 artifacts/
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log

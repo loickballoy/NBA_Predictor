@@ -67,6 +67,12 @@ variable "schedule_paused" {
   description = "Planification en pause par défaut : on l'active pendant la saison NBA"
 }
 
+variable "api_image" {
+  type        = string
+  default     = ""
+  description = "Image de l'API ; vide = même image que le job"
+}
+
 locals {
   common_labels = {
     project    = "nba-mlops"

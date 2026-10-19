@@ -29,3 +29,7 @@ output "deployer_service_account" {
 output "trainer_job" {
   value = google_cloud_run_v2_job.trainer.name
 }
+
+output "api_url" {
+  value = google_cloud_run_v2_service.api.uri
+}

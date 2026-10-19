@@ -5,6 +5,7 @@ resource "google_cloud_run_v2_service" "api" {
   location            = var.region
   deletion_protection = false
   ingress             = "INGRESS_TRAFFIC_ALL"
+  iap_enabled         = true
 
   labels = {
     component = "api"
@@ -56,4 +57,23 @@ resource "google_cloud_run_v2_service" "api" {
   }
 
   depends_on = [google_project_service.apis]
+}
+
+data "google_project" "this" {}
+
+# IAP doit avoir le droit d'appeler le service une fois l'utilisateur authentifié.
+resource "google_cloud_run_v2_service_iam_member" "iap_invoker" {
+  location = google_cloud_run_v2_service.api.location
+  name     = google_cloud_run_v2_service.api.name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:service-${data.google_project.this.number}@gcp-sa-iap.iam.gserviceaccount.com"
+}
+
+# Les seules personnes autorisées à passer IAP.
+resource "google_iap_web_cloud_run_service_iam_member" "users" {
+  for_each               = toset(var.iap_users)
+  location               = google_cloud_run_v2_service.api.location
+  cloud_run_service_name = google_cloud_run_v2_service.api.name
+  role                   = "roles/iap.httpsResourceAccessor"
+  member                 = each.value
 }

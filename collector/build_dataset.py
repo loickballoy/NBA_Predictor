@@ -90,15 +90,53 @@ def export_splits(w: pd.DataFrame, val_from: int = 2020, test_from: int = 2023, 
         "test": w[year >= test_from]
     }
 
-    empty = [name for name, part in splits.items() if part.empty()]
+    # 1. Tout vérifier avant d'écrire quoi que ce soit : un échec ne doit jamais
+    #    laisser un mélange de nouveaux et d'anciens fichiers.
+    empty = [name for name, part in splits.items() if part.empty]
     if empty:
-        raise ValueError(f"Empty Splits: {empty}, ajust val_from and test_from")
+        raise ValueError(f"Split(s) vide(s) : {empty}, ajuste val_from / test_from")
 
+    # 2. Écrire seulement une fois que tout est valide.
     out_dir.mkdir(parents=True, exist_ok=True)
     for name, part in splits.items():
         path = out_dir / f"{name}.csv"
         part.to_csv(path, index=False, float_format="%.6g")
         print(f"{name:5s} : {len(part):6d} lignes -> {path}")
+
     n_x = sum(c.startswith("x_") for c in w.columns)
     n_y = sum(c.startswith("y_") for c in w.columns)
     print(f"{n_x} features, {n_y} cibles")
+
+
+def build_inference_windows(df: pd.DataFrame) -> pd.DataFrame:
+    """Fenêtres à prédire : les 3 dernières saisons de chaque joueur actif, sans cible.
+
+    Seuls les joueurs dont la saison la plus récente est la dernière saison des données
+    sont gardés : ce sont ceux dont on veut prédire la saison suivante.
+    id_TARGET_YEAR est la saison prédite (dernière saison + 1).
+    """
+    d = prepare(df)
+    last = d["START_YEAR"].max()
+
+    w = _season(d, 0, FEATURES, "x_s1_")
+    w = w.merge(_season(d, 1, FEATURES, "x_s2_"), on=KEYS, how="inner")
+    w = w.merge(_season(d, 2, FEATURES + LAST_SEASON_ONLY, "x_s3_"), on=KEYS, how="inner")
+    w = w[w["START_YEAR"] + 2 == last]
+
+    w["id_TARGET_YEAR"] = w["START_YEAR"] + 3
+    w = w.rename(columns={"PLAYER_ID": "id_PLAYER_ID"}).drop(columns=["START_YEAR"])
+    w = w.dropna()
+
+    id_cols = [c for c in w.columns if c.startswith("id_")]
+    x_cols = [c for c in w.columns if c.startswith("x_")]
+    return w[id_cols + x_cols].reset_index(drop=True)
+
+
+def export_inference(w: pd.DataFrame, out_dir: Path = OUT_DIR) -> Path:
+    if w.empty:
+        raise ValueError("Aucune fenêtre à prédire")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / "inference.csv"
+    w.to_csv(path, index=False, float_format="%.6g")
+    print(f"infer : {len(w):6d} lignes -> {path} (saison prédite {int(w['id_TARGET_YEAR'].iloc[0])})")
+    return path

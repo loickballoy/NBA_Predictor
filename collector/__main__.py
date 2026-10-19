@@ -1,7 +1,8 @@
 import argparse
 
 from collector.fetch_raw import fetch_all, load_all_awards, load_all_career_stats
-from collector.build_dataset import build_windows, export_splits
+from collector.build_dataset import (build_inference_windows, build_windows,
+                                     export_inference, export_splits)
 from collector.clean import make_season_table
 
 def cmd_fetch(args) -> int:
@@ -9,23 +10,24 @@ def cmd_fetch(args) -> int:
     return 1 if failures else 0
 
 def cmd_build(args):
-    if args.val_from > args.test_from:
-        raise SystemExit("--val-from can't be higher than --test-from")
+    if args.val_from >= args.test_from:
+        raise SystemExit("--val-from must be lower than --test-from")
 
     career_stats = load_all_career_stats()
     awards = load_all_awards()
     print(f"{len(career_stats)} stat lines, {len(awards)} awards lines")
 
     seasons = make_season_table(career_stats, awards)
-    print(f"{len(seasons)} players kept after clean")
+    print(f"{len(seasons)} player-seasons kept after clean")
     
     windows = build_windows(seasons)
     export_splits(windows, val_from=args.val_from, test_from=args.test_from)
+    export_inference(build_inference_windows(seasons))
     return 0   
     
 
 def main():
-    parser = argparse.ArgumentParser(prog="collector", description="Nba data pipeline")
+    parser = argparse.ArgumentParser(prog="python -m collector", description="Nba data pipeline")
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_fetch = sub.add_parser('fetch', help="Downloads the raw data from nba_api")

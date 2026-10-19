@@ -1,3 +1,6 @@
+# syntax=docker/dockerfile:1
+
+# ---------- Étape 1 : compilation et tests du C++ ----------
 FROM python:3.12-slim-bookworm AS builder
 
 RUN apt-get update \
@@ -11,6 +14,7 @@ RUN make LDFLAGS="-static-libstdc++ -static-libgcc" \
  && make test LDFLAGS="-static-libstdc++ -static-libgcc"
 
 
+# ---------- Étape 2 : image d'exécution ----------
 FROM python:3.12-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -24,6 +28,7 @@ COPY requirements.txt ./
 RUN pip install -r requirements.txt
 
 COPY collector/ ./collector/
+COPY pipeline/ ./pipeline/
 COPY --from=builder /src/model/bin/train /src/model/bin/predict /app/bin/
 
 ARG APP_UID=1000
@@ -32,5 +37,9 @@ RUN useradd --create-home --uid ${APP_UID} app \
  && chown -R app:app /app/collector/data /artifacts
 USER app
 
-ENV PATH="/app/bin:${PATH}"
-CMD ["python", "-m", "collector", "--help"]
+# Commit du code embarqué : il entre dans le nom de version de chaque modèle.
+ARG GIT_SHA=unknown
+ENV GIT_SHA=${GIT_SHA} \
+    PATH="/app/bin:${PATH}"
+
+CMD ["python", "-m", "pipeline.job"]

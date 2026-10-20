@@ -3,40 +3,58 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Projections NBA 2026-27</title>
+<title>NBA Predictor · projections 2026-27</title>
+<meta name="description" content="Projections des statistiques NBA de la saison prochaine par un réseau de neurones écrit en C++, réentraîné chaque semaine sur Google Cloud, avec des explications rédigées par Claude et vérifiées chiffre par chiffre.">
+<meta property="og:title" content="NBA Predictor · projections 2026-27">
+<meta property="og:description" content="Réseau de neurones C++ from scratch, pipeline MLOps sur GCP, explications par LLM vérifiées. Cherche un joueur et regarde sa projection.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#13294B">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23F2711C' stroke='%2313294B' stroke-width='2'/%3E%3Cpath d='M2 16h28M16 2v28M6 6c6 5 6 15 0 20M26 6c-6 5-6 15 0 20' fill='none' stroke='%2313294B' stroke-width='1.6'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --court: #D9E2EC;
+    --court: #E4EAF1;
     --surface: #FFFFFF;
+    --surface-2: #F3F6FA;
     --ink: #13294B;
     --slate: #5B6B82;
-    --line: #B8C6D6;
+    --line: #C9D4E1;
     --ball: #F2711C;
     --ball-ink: #B4500F;
+    --ball-soft: #FDE8D9;
     --up: #1F7A4D;
+    --up-soft: #DDF2E7;
     --down: #B4322A;
+    --down-soft: #F8E0DE;
+    --shadow: 0 1px 2px rgb(19 41 75 / 6%), 0 8px 24px rgb(19 41 75 / 8%);
+    --radius: 1rem;
     --display: "Big Shoulders Display", "Arial Narrow", Impact, sans-serif;
     --body: "Barlow", "Segoe UI", system-ui, sans-serif;
     color-scheme: light;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --court: #0F1F38;
-      --surface: #172B4D;
+      --court: #0B1830;
+      --surface: #142744;
+      --surface-2: #1A3054;
       --ink: #E6EDF5;
       --slate: #9AACC4;
-      --line: #2E4670;
+      --line: #2A4268;
       --ball-ink: #FF9A57;
+      --ball-soft: #3A2A22;
       --up: #5CC793;
+      --up-soft: #173B32;
       --down: #F07A70;
+      --down-soft: #45232A;
+      --shadow: 0 1px 2px rgb(0 0 0 / 30%), 0 8px 24px rgb(0 0 0 / 25%);
       color-scheme: dark;
     }
   }
   * { box-sizing: border-box; }
-  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
   body {
     margin: 0;
     background: var(--court);
@@ -44,106 +62,231 @@
     font: 400 1rem/1.55 var(--body);
     padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px);
   }
-  main { max-width: 60rem; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+  a { color: inherit; }
+  code { font-size: 0.9em; background: var(--surface-2); padding: 0.05rem 0.35rem; border-radius: 0.3rem; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .wrap { max-width: 64rem; margin: 0 auto; padding: 0 1rem; }
+  section[id] { scroll-margin-top: 1rem; }
 
-  header h1 {
-    font: 800 clamp(1.6rem, 4vw, 2.2rem)/1 var(--display);
-    margin: 0 0 1.25rem;
-    letter-spacing: 0.01em;
+  /* ---------- en-tête ---------- */
+  .top { border-bottom: 1px solid rgb(255 255 255 / 10%); margin-bottom: 2.5rem; }
+  .top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 1rem; height: 3.5rem; }
+  .brand { display: flex; align-items: center; gap: 0.6rem; font: 800 1.35rem/1 var(--display); letter-spacing: 0.02em; text-decoration: none; }
+  .brand svg { width: 1.6rem; height: 1.6rem; flex: none; }
+  .top nav { display: flex; gap: 1.25rem; font-weight: 500; font-size: 0.95rem; }
+  .top nav a { text-decoration: none; opacity: 0.85; }
+  .top nav a:hover { opacity: 1; text-decoration: underline; text-underline-offset: 0.25em; }
+
+  .hero {
+    background:
+      radial-gradient(circle at 100% 0%, rgb(242 113 28 / 22%), transparent 45%),
+      var(--ink);
+    color: var(--court);
+    padding: 0 0 5.5rem;
+  }
+  @media (prefers-color-scheme: dark) {
+    .hero { background: radial-gradient(circle at 100% 0%, rgb(242 113 28 / 18%), transparent 45%), #07111F; color: var(--ink); }
+  }
+  .eyebrow { margin: 0 0 0.6rem; font-weight: 600; font-size: 0.85rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ball); }
+  .hero h1 { font: 800 clamp(2.4rem, 7vw, 4.2rem)/0.95 var(--display); margin: 0 0 1rem; letter-spacing: 0.01em; }
+  .hero h1 em { font-style: normal; color: var(--ball); }
+  .lede { max-width: 40rem; margin: 0 0 1.4rem; font-size: 1.1rem; opacity: 0.9; }
+  .stack { display: flex; flex-wrap: wrap; gap: 0.45rem; margin: 0; padding: 0; list-style: none; }
+  .stack li {
+    font-size: 0.85rem; font-weight: 600;
+    padding: 0.25rem 0.7rem;
+    border: 1px solid rgb(255 255 255 / 25%);
+    border-radius: 999px;
+    background: rgb(255 255 255 / 6%);
+  }
+
+  /* ---------- recherche ---------- */
+  .search-card {
+    margin-top: -3.5rem;
+    background: var(--surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 1.25rem;
   }
   form { display: flex; gap: 0.5rem; }
   input[type="search"] {
     flex: 1; min-width: 0;
     font: 500 1.05rem var(--body);
     color: var(--ink);
-    background: var(--surface);
+    background: var(--surface-2);
     border: 2px solid var(--line);
-    border-radius: 0.5rem;
-    padding: 0.7rem 0.9rem;
+    border-radius: 0.6rem;
+    padding: 0.75rem 0.95rem;
   }
-  button {
+  button, .chip {
     font: 600 1rem var(--body);
-    color: #fff;
-    background: var(--ink);
-    border: 0;
-    border-radius: 0.5rem;
-    padding: 0 1.2rem;
     cursor: pointer;
+    border-radius: 0.6rem;
   }
-  @media (prefers-color-scheme: dark) { button { color: var(--court); } }
-  input:focus-visible, button:focus-visible { outline: 3px solid var(--ball); outline-offset: 2px; }
+  .primary {
+    color: #fff;
+    background: var(--ball-ink);
+    border: 0;
+    padding: 0 1.3rem;
+  }
+  @media (prefers-color-scheme: dark) { .primary { background: var(--ball); color: #1A0E05; } }
+  .primary:hover { filter: brightness(1.08); }
+  .primary:disabled { opacity: 0.6; cursor: progress; }
+  input:focus-visible, button:focus-visible, a:focus-visible { outline: 3px solid var(--ball); outline-offset: 2px; }
 
-  .message { margin: 2.5rem 0; color: var(--slate); max-width: 34rem; }
+  .featured { display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem; margin-top: 0.9rem; }
+  .featured > span { font-size: 0.9rem; color: var(--slate); margin-right: 0.2rem; }
+  .chip {
+    font-size: 0.9rem; font-weight: 500;
+    color: var(--ink);
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 0.3rem 0.8rem;
+  }
+  .chip:hover { border-color: var(--ball); color: var(--ball-ink); }
+  .demo-note { margin: 0.9rem 0 0; font-size: 0.9rem; color: var(--slate); }
+
+  .message { margin: 2rem 0 0; color: var(--slate); }
   .message.error { color: var(--down); }
 
-  .player { display: grid; grid-template-columns: 15rem 1fr; gap: 2rem; margin-top: 2.5rem; align-items: start; }
+  /* ---------- fiche joueur ---------- */
+  .card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+  }
+  #result { margin-top: 1.5rem; }
+  .player { display: grid; grid-template-columns: 15rem 1fr; gap: 2rem; padding: 1.75rem; align-items: start; }
+  @media (prefers-reduced-motion: no-preference) {
+    .player { animation: rise 0.35s ease-out; }
+    @keyframes rise { from { opacity: 0; transform: translateY(0.6rem); } }
+  }
   /* La raquette : la zone peinte sous le panier, avec l'arc de lancer franc en haut. */
   .lane {
-    background: var(--ink);
-    border-radius: 7.5rem 7.5rem 0.5rem 0.5rem;
+    background: linear-gradient(180deg, var(--ink), #1E3B66);
+    border-radius: 7.5rem 7.5rem 0.75rem 0.75rem;
     padding-top: 1.5rem;
     overflow: hidden;
     aspect-ratio: 3 / 3.4;
     display: flex; align-items: flex-end; justify-content: center;
   }
+  @media (prefers-color-scheme: dark) { .lane { background: linear-gradient(180deg, #07111F, #1E3B66); } }
   .lane img { width: 108%; max-width: none; display: block; }
-  .lane .initials { font: 800 4.5rem/1 var(--display); color: var(--court); margin: auto; }
+  .lane .initials { font: 800 4.5rem/1 var(--display); color: #E4EAF1; margin: auto; }
 
-  .identity h2 {
-    font: 800 clamp(2.6rem, 7vw, 4.4rem)/0.92 var(--display);
-    margin: 0 0 0.6rem;
+  .identity .season-tag {
+    display: inline-block; margin-bottom: 0.5rem;
+    font-size: 0.8rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--ball-ink); background: var(--ball-soft);
+    padding: 0.2rem 0.6rem; border-radius: 999px;
   }
-  .identity p { margin: 0; color: var(--slate); }
+  .identity h2 { font: 800 clamp(2.4rem, 6.5vw, 4rem)/0.92 var(--display); margin: 0 0 0.5rem; }
+  .identity > p { margin: 0; color: var(--slate); }
 
-  .stats { list-style: none; margin: 1.75rem 0 0; padding: 0; }
+  .stats { list-style: none; margin: 1.5rem 0 0; padding: 0; }
   .stat {
     display: grid;
-    grid-template-columns: 9.5rem 1fr 7rem;
+    grid-template-columns: 9.5rem 1fr 8.5rem;
     gap: 1rem;
     align-items: center;
-    padding: 0.7rem 0;
+    padding: 0.65rem 0;
     border-top: 1px solid var(--line);
   }
   .stat:last-child { border-bottom: 1px solid var(--line); }
   .stat .label { font-weight: 500; }
-  .track { position: relative; height: 0.5rem; background: var(--line); border-radius: 1rem; }
-  .fill { position: absolute; inset: 0 auto 0 0; background: var(--ball); border-radius: 1rem; }
+  .track { position: relative; height: 0.5rem; background: var(--surface-2); border: 1px solid var(--line); border-radius: 1rem; }
+  .fill { position: absolute; inset: -1px auto -1px -1px; background: var(--ball); border-radius: 1rem; }
   .tick {
-    position: absolute; top: 50%; width: 0.9rem; height: 0.9rem;
+    position: absolute; top: 50%; width: 0.95rem; height: 0.95rem;
     transform: translate(-50%, -50%);
     border: 2px solid var(--ink); background: var(--surface); border-radius: 50%;
   }
-  .values { text-align: right; line-height: 1.15; }
-  .values .pred { font: 800 1.7rem/1 var(--display); color: var(--ball-ink); display: block; }
-  .values .delta { font-size: 0.85rem; color: var(--slate); white-space: nowrap; }
-  .delta.up { color: var(--up); }
-  .delta.down { color: var(--down); }
+  .values { display: flex; align-items: baseline; justify-content: flex-end; gap: 0.5rem; }
+  .values .pred { font: 800 1.7rem/1 var(--display); color: var(--ball-ink); }
+  .delta {
+    font-size: 0.8rem; font-weight: 600; white-space: nowrap;
+    padding: 0.1rem 0.45rem; border-radius: 999px;
+    color: var(--slate); background: var(--surface-2);
+  }
+  .delta.up { color: var(--up); background: var(--up-soft); }
+  .delta.down { color: var(--down); background: var(--down-soft); }
 
-  .legend { display: flex; gap: 1.5rem; margin-top: 1rem; font-size: 0.9rem; color: var(--slate); flex-wrap: wrap; }
+  .legend { display: flex; gap: 1.5rem; margin-top: 0.9rem; font-size: 0.88rem; color: var(--slate); flex-wrap: wrap; }
   .legend span { display: inline-flex; align-items: center; gap: 0.45rem; }
   .legend i { display: inline-block; width: 0.9rem; height: 0.9rem; border-radius: 50%; }
   .legend .l-pred { background: var(--ball); }
   .legend .l-last { border: 2px solid var(--ink); background: var(--surface); }
 
-  .explain { margin-top: 2.25rem; padding-top: 1.5rem; border-top: 2px solid var(--ink); }
-  .explain h3 { font: 800 1.6rem/1.1 var(--display); margin: 0 0 0.75rem; }
-  .explain p, .explain li { max-width: 40rem; color: var(--ink); }
-  .explain ul { padding-left: 1.2rem; margin: 0.75rem 0; }
+  .explain {
+    margin-top: 1.75rem; padding: 1.25rem 1.4rem;
+    background: var(--surface-2); border-radius: 0.75rem;
+    border-left: 4px solid var(--ball);
+  }
+  .explain h3 { font: 800 1.5rem/1.1 var(--display); margin: 0 0 0.6rem; }
+  .explain p, .explain li { max-width: 42rem; }
+  .explain ul { padding-left: 1.2rem; margin: 0.6rem 0; }
   .explain .caution { color: var(--slate); font-style: italic; }
-  .explain p.provenance { font-size: 0.85rem; color: var(--slate); margin-top: 1rem; }
-  .explain button { padding: 0.65rem 1.1rem; }
-  .demo-note { margin: 1rem 0 0; font-size: 0.95rem; color: var(--slate); max-width: 44rem; }
-  .demo-note a { color: inherit; }
+  .explain p.provenance { font-size: 0.83rem; color: var(--slate); margin: 0.9rem 0 0; }
+  .explain .primary { padding: 0.65rem 1.1rem; }
 
-  footer { margin-top: 3rem; font-size: 0.85rem; color: var(--slate); }
+  /* ---------- sections de présentation ---------- */
+  .block { margin-top: 3.5rem; }
+  .block > h2 { font: 800 clamp(1.8rem, 4vw, 2.4rem)/1 var(--display); margin: 0 0 0.4rem; }
+  .block > .intro { margin: 0 0 1.25rem; color: var(--slate); max-width: 44rem; }
 
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; }
+  .kpi { padding: 1rem 1.1rem; }
+  .kpi b { display: block; font: 800 2rem/1 var(--display); color: var(--ball-ink); margin-bottom: 0.3rem; overflow-wrap: anywhere; }
+  .kpi span { font-size: 0.88rem; color: var(--slate); }
+
+  .metrics { margin-top: 0.75rem; padding: 0.5rem 1.25rem 1rem; overflow-x: auto; }
+  .metrics table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+  .metrics th { text-align: left; font-weight: 600; color: var(--slate); font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.05em; padding: 0.75rem 0.5rem 0.5rem; }
+  .metrics td { padding: 0.55rem 0.5rem; border-top: 1px solid var(--line); vertical-align: middle; }
+  .metrics td.num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  .metrics th.num { text-align: right; }
+  .gainbar { display: flex; align-items: center; gap: 0.6rem; min-width: 9rem; }
+  .gainbar .bar { flex: 1; height: 0.45rem; background: var(--surface-2); border-radius: 1rem; position: relative; overflow: hidden; }
+  .gainbar .bar i { position: absolute; inset: 0 auto 0 0; background: var(--up); border-radius: 1rem; }
+  .gainbar .bar i.neg { background: var(--down); }
+  .gainbar b { font-weight: 600; min-width: 3.6rem; text-align: right; font-variant-numeric: tabular-nums; }
+  .metrics .note { font-size: 0.83rem; color: var(--slate); margin: 0.75rem 0 0; }
+
+  .steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; counter-reset: step; }
+  .steps li { padding: 1.1rem 1.15rem 1.2rem; counter-increment: step; }
+  .steps li::before {
+    content: counter(step);
+    display: grid; place-items: center;
+    width: 2rem; height: 2rem; margin-bottom: 0.7rem;
+    font: 800 1.15rem/1 var(--display);
+    color: #fff; background: var(--ink); border-radius: 50%;
+  }
+  @media (prefers-color-scheme: dark) { .steps li::before { background: var(--ball); color: #1A0E05; } }
+  .steps h3 { margin: 0 0 0.35rem; font-size: 1.05rem; }
+  .steps p { margin: 0; font-size: 0.93rem; color: var(--slate); }
+  .more { margin-top: 1rem; font-weight: 600; }
+
+  footer { margin: 4rem 0 0; padding: 1.5rem 0 2.5rem; border-top: 1px solid var(--line); font-size: 0.88rem; color: var(--slate); }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; justify-content: space-between; }
+
+  @media (max-width: 52rem) {
+    .kpis { grid-template-columns: repeat(2, 1fr); }
+    .steps { grid-template-columns: repeat(2, 1fr); }
+  }
   @media (max-width: 40rem) {
-    .player { grid-template-columns: 1fr; gap: 1.25rem; }
-    .lane { max-width: 13rem; }
+    .top nav a.optional { display: none; }
+    .hero { padding: 0 0 5rem; }
+    .top { margin-bottom: 2rem; }
+    .player { grid-template-columns: 1fr; gap: 1.25rem; padding: 1.25rem; }
+    .lane { width: 100%; max-width: 12rem; margin: 0 auto; }
     form { flex-direction: column; }
-    button { padding: 0.75rem 1.2rem; }
-    .stat { grid-template-columns: 1fr auto; }
+    .primary { padding: 0.8rem 1.2rem; }
+    .stat { grid-template-columns: 1fr auto; gap: 0.4rem 1rem; }
     .stat .track { grid-column: 1 / -1; grid-row: 2; }
+    .steps { grid-template-columns: 1fr; }
+    .metrics { padding: 0.25rem 0.75rem 0.75rem; }
+    .metrics .hide-sm { display: none; }
   }
   @media (prefers-reduced-motion: no-preference) {
     .fill, .tick { transition: width 0.45s ease, left 0.45s ease; }
@@ -151,23 +294,77 @@
 </style>
 </head>
 <body>
-<main>
-  <header>
-    <h1>Projections NBA 2026-27</h1>
+<div class="hero">
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="14" fill="#F2711C"/><path d="M2 16h28M16 2v28M6 6c6 5 6 15 0 20M26 6c-6 5-6 15 0 20" fill="none" stroke="#13294B" stroke-width="1.6"/></svg>
+      NBA Predictor
+    </a>
+    <nav aria-label="Liens">
+      <a class="optional" href="#modele">Le modèle</a>
+      <a class="optional" href="#pipeline">Comment ça marche</a>
+      <a href="https://github.com/loickballoy/NBA_Predictor">Code source</a>
+    </nav>
+  </div>
+</header>
+
+  <div class="wrap">
+    <p class="eyebrow">Machine learning · MLOps · LLM</p>
+    <h1>Projections NBA <em id="season-title">2026-27</em></h1>
+    <p class="lede">Un réseau de neurones écrit en C++ prédit les statistiques de chaque joueur pour la saison
+      prochaine à partir de ses trois dernières saisons. Claude explique ensuite chaque projection,
+      et chaque chiffre qu'il cite est vérifié.</p>
+    <ul class="stack" aria-label="Technologies">
+      <li>C++17 from scratch</li><li>Python · pandas</li><li>FastAPI</li>
+      <li>Cloud Run</li><li>Terraform</li><li>Claude API</li>
+    </ul>
+  </div>
+</div>
+
+<main class="wrap">
+  <div class="search-card">
     <form id="search" role="search">
-      <label for="q" class="sr-only" style="position:absolute;left:-9999px">Joueur</label>
+      <label for="q" class="sr-only">Joueur</label>
       <input id="q" type="search" list="players" placeholder="Nom d'un joueur, par exemple LeBron James" autocomplete="off" required>
       <datalist id="players"></datalist>
-      <button type="submit">Voir la projection</button>
+      <button type="submit" class="primary">Voir la projection</button>
     </form>
+    <div id="featured" class="featured" hidden><span>Essayer :</span></div>
     <p id="demo-note" class="demo-note" hidden></p>
-  </header>
+  </div>
 
-  <p id="message" class="message">Chargement de la liste des joueurs…</p>
-  <section id="result" hidden aria-live="polite"></section>
+  <p id="message" class="message" role="status">Chargement de la liste des joueurs…</p>
+  <section id="result" class="card" hidden aria-live="polite"></section>
 
-  <footer id="footer"></footer>
+  <section id="modele" class="block" hidden>
+    <h2>Le modèle</h2>
+    <p class="intro">Erreurs mesurées sur le jeu de test (saisons jamais vues pendant l'entraînement), comparées à
+      une baseline simple : « le joueur refait exactement sa dernière saison ».</p>
+    <div class="kpis" id="kpis"></div>
+    <div class="card metrics" id="metrics"></div>
+  </section>
+
+  <section id="pipeline" class="block">
+    <h2>Comment ça marche</h2>
+    <p class="intro">Le pipeline complet tourne sur Google Cloud et se réentraîne chaque semaine pendant la saison.
+      Cette page en est un instantané statique.</p>
+    <ol class="steps">
+      <li class="card"><h3>Collecte</h3><p>Stats de carrière et récompenses de tous les joueurs via <code>nba_api</code>, stockées en Parquet dans un bucket.</p></li>
+      <li class="card"><h3>Dataset</h3><p>Fenêtres de 3 saisons consécutives → la saison suivante. Découpage temporel train / validation / test, sans fuite.</p></li>
+      <li class="card"><h3>Entraînement</h3><p>Perceptron multicouche écrit en C++ sans librairie. Promu seulement s'il bat la baseline et le modèle en production.</p></li>
+      <li class="card"><h3>Service</h3><p>API FastAPI sur Cloud Run. Claude rédige l'explication ; une réponse qui invente un chiffre est rejetée.</p></li>
+    </ol>
+    <p class="more"><a href="https://github.com/loickballoy/NBA_Predictor/blob/main/docs/ARCHITECTURE.md">Architecture détaillée →</a></p>
+  </section>
 </main>
+
+<footer>
+  <div class="wrap">
+    <span id="footer">Projet personnel.</span>
+    <span>Par <a href="https://github.com/loickballoy">@loickballoy</a> · <a href="https://github.com/loickballoy/NBA_Predictor">code source</a></span>
+  </div>
+</footer>
 
 <script>
 const LABELS = {
@@ -177,6 +374,8 @@ const LABELS = {
 };
 // Pour ces stats, une baisse est une bonne nouvelle.
 const LOWER_IS_BETTER = new Set(["TOV_PER_GAME"]);
+// Suggestions en mode API, où la liste des joueurs ne contient pas les minutes.
+const FAMOUS = ["LeBron James", "Stephen Curry", "Nikola Jokić", "Victor Wembanyama", "Luka Dončić", "Jayson Tatum"];
 
 const byName = new Map();
 const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -198,6 +397,7 @@ async function api(path) {
   if (path === "/players") {
     return staticData.players.map(({ player_id, player_name }) => ({ player_id, player_name }));
   }
+  if (path === "/model") return staticData.model;
   const [, id, kind] = path.match(/^\/players\/(\d+)\/(prediction|explain)$/);
   const p = staticData.players.find((x) => x.player_id === Number(id));
   if (!p) throw new Error("Ce joueur n'a pas de projection dans la démo.");
@@ -233,11 +433,11 @@ function render(p) {
     if (last !== null) {
       const d = s.predicted - last;
       if (fmt(stat, Math.abs(d)) === fmt(stat, 0)) {
-        delta = `<span class="delta">stable vs ${fmt(stat, last)}</span>`;
+        delta = `<span class="delta" title="Saison passée : ${fmt(stat, last)}">stable</span>`;
       } else {
         const good = LOWER_IS_BETTER.has(stat) ? d < 0 : d > 0;
         const sign = d > 0 ? "+" : "−";
-        delta = `<span class="delta ${good ? "up" : "down"}">${sign}${fmt(stat, Math.abs(d))} vs ${fmt(stat, last)}</span>`;
+        delta = `<span class="delta ${good ? "up" : "down"}" title="Saison passée : ${fmt(stat, last)}">${sign}${fmt(stat, Math.abs(d))}</span>`;
       }
     }
     return `
@@ -253,15 +453,15 @@ function render(p) {
 
   $("result").innerHTML = `
     <article class="player">
-      <div class="lane">${DATA_URL
-        ? `<span class="initials">${initials(name)}</span>`
-        : `<img src="https://cdn.nba.com/headshots/nba/latest/1040x760/${p.player_id}.png"
+      <div class="lane">
+        <img src="https://cdn.nba.com/headshots/nba/latest/1040x760/${p.player_id}.png"
              alt="Photo de ${name}" width="1040" height="760"
-             onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'initials',textContent:'${initials(name).replace(/[^\p{L}]/gu, "")}'}))">`}
+             onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'initials',textContent:'${initials(name).replace(/[^\p{L}]/gu, "")}'}))">
       </div>
       <div class="identity">
+        <span class="season-tag">Projection ${p.season}</span>
         <h2>${name}</h2>
-        <p>Projection par match pour la saison ${p.season}, comparée à sa saison passée.</p>
+        <p>Statistiques par match prévues pour la saison ${p.season}, comparées à sa saison passée.</p>
         <ul class="stats">${rows}</ul>
         <div class="legend">
           <span><i class="l-pred"></i>Projection ${p.season}</span>
@@ -269,7 +469,7 @@ function render(p) {
         </div>
         <section class="explain" id="explain">
           <h3>Pourquoi cette projection ?</h3>
-          <button type="button" id="explain-btn">Expliquer avec Claude</button>
+          <button type="button" class="primary" id="explain-btn">Expliquer avec Claude</button>
         </section>
       </div>
     </article>`;
@@ -277,6 +477,7 @@ function render(p) {
   if (DATA_URL) showExplanation(p.player_id);
   $("result").hidden = false;
   $("message").hidden = true;
+  $("season-title").textContent = p.season;
   $("footer").textContent = `Modèle en production : ${p.model_version}. Les matchs joués sont un total sur la saison.`;
 }
 
@@ -304,14 +505,70 @@ async function showExplanation(id) {
   }
 }
 
-async function showPlayer(id) {
+async function showPlayer(id, scroll = false) {
   try {
     render(await api(`/players/${id}/prediction`));
     history.replaceState(null, "", `#${id}`);
+    if (scroll) $("result").scrollIntoView({ block: "start" });
   } catch (e) {
     $("result").hidden = true;
     showMessage(e.message, true);
   }
+}
+
+function renderFeatured(players) {
+  let picks;
+  if (staticData) {
+    const minutes = (p) => p.stats.MIN_PER_GAME?.last_season ?? 0;
+    picks = [...staticData.players].sort((a, b) => minutes(b) - minutes(a)).slice(0, 6);
+  } else {
+    picks = FAMOUS.map((n) => players.find((p) => p.player_name === n)).filter(Boolean);
+  }
+  if (!picks.length) return;
+  for (const p of picks) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "chip";
+    b.textContent = p.player_name;
+    b.addEventListener("click", () => { $("q").value = p.player_name; showPlayer(p.player_id, true); });
+    $("featured").append(b);
+  }
+  $("featured").hidden = false;
+}
+
+const pctFmt = (v) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(0)} %`;
+
+function renderModel(m, nPlayers) {
+  const metrics = Object.entries(m.test_metrics || {});
+  if (!metrics.length) return;
+  const gains = metrics.map(([, s]) => s.gain_pct).filter((g) => g !== null);
+  const meanGain = gains.reduce((a, b) => a + b, 0) / (gains.length || 1);
+  const date = m.promoted_at ? new Date(m.promoted_at).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" }) : "—";
+  const a = Array.isArray(m.architecture) ? m.architecture : [];
+  const kpis = [
+    [nPlayers, "joueurs avec une projection"],
+    [pctFmt(meanGain), "d'erreur en moins que la baseline, en moyenne"],
+    [a.length > 2 ? a.slice(1, -1).join("-") : "—",
+     a.length > 2 ? `neurones cachés (${a[0]} entrées → ${a.at(-1)} sorties)` : "architecture"],
+    [date, "date de promotion en production"],
+  ];
+  $("kpis").innerHTML = kpis.map(([v, l]) => `<div class="card kpi"><b>${esc(v)}</b><span>${esc(l)}</span></div>`).join("");
+
+  const maxGain = Math.max(1, ...gains.map(Math.abs));
+  const rows = metrics.map(([stat, s]) => {
+    const g = s.gain_pct;
+    const bar = `<span class="bar">${g === null ? "" : `<i class="${g < 0 ? "neg" : ""}" style="width:${Math.abs(g) / maxGain * 100}%"></i>`}</span>`;
+    const num = (v) => v === null ? "—" : v.toFixed(stat === "GP" ? 1 : 2).replace(".", ",");
+    return `<tr><td>${LABELS[stat] || stat}</td>
+      <td class="num">${num(s.mae)}</td><td class="num hide-sm">${num(s.baseline_mae)}</td>
+      <td><span class="gainbar">${bar}<b>${g === null ? "—" : pctFmt(g)}</b></span></td></tr>`;
+  }).join("");
+  $("metrics").innerHTML = `<table>
+      <thead><tr><th>Statistique</th><th class="num">MAE modèle</th><th class="num hide-sm">MAE baseline</th><th>Gain</th></tr></thead>
+      <tbody>${rows}</tbody></table>
+    <p class="note">MAE : erreur absolue moyenne, dans l'unité de la stat (points par match, matchs joués…).
+      Version <code>${esc(m.version)}</code>.</p>`;
+  $("modele").hidden = false;
 }
 
 $("search").addEventListener("submit", (ev) => {
@@ -326,26 +583,33 @@ $("search").addEventListener("submit", (ev) => {
 });
 
 (async () => {
+  let players;
   try {
-    const players = await api("/players");
+    players = await api("/players");
     if (DATA_URL) {
-      const m = staticData.model;
-      $("demo-note").innerHTML = `Démo publique : instantané du modèle <code>${esc(m.version)}</code>, `
-        + `exporté le ${new Date(staticData.generated_at).toLocaleDateString("fr-FR")}. La plateforme complète `
-        + `tourne sur Google Cloud, derrière une authentification. `
-        + `<a href="https://github.com/loickballoy/NBA_Predictor">Code source et architecture</a>`;
+      $("demo-note").innerHTML = `Démo publique : instantané du modèle exporté le `
+        + `${new Date(staticData.generated_at).toLocaleDateString("fr-FR")}. La plateforme complète tourne sur `
+        + `Google Cloud, derrière une authentification.`;
       $("demo-note").hidden = false;
+      if (staticData.players[0]) $("season-title").textContent = staticData.players[0].season;
     }
     const list = $("players");
     for (const p of players) {
       byName.set(p.player_name.toLowerCase(), p.player_id);
       list.append(new Option(p.player_name, p.player_name));
     }
-    showMessage(`${players.length} joueurs ont une projection. Tape un nom pour commencer.`);
+    showMessage(`${players.length} joueurs ont une projection. Tape un nom ou choisis-en un ci-dessus.`);
+    renderFeatured(players);
     const fromHash = Number(location.hash.slice(1));
     if (fromHash) showPlayer(fromHash);
   } catch (e) {
     showMessage(`Impossible de charger les joueurs : ${e.message}`, true);
+    return;
+  }
+  try {
+    renderModel(await api("/model"), players.length);
+  } catch (_) {
+    // Bloc facultatif : sans métriques, la page reste utilisable.
   }
 })();
 </script>

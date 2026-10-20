@@ -10,6 +10,7 @@ est défini ; sinon le repli sans IA est utilisé.
 """
 import argparse
 import json
+import math
 import os
 import shutil
 from datetime import datetime, timezone
@@ -20,6 +21,11 @@ from api.store import ModelStore
 from nba_api.stats.static import players as nba_players
 
 STATIC_PAGE = Path(__file__).resolve().parents[1] / "api" / "static" / "index.html"
+
+
+def clean(v):
+    """NaN n'existe pas en JSON : null à la place (comme api.main.clean)."""
+    return None if v is None or (isinstance(v, float) and math.isnan(v)) else float(v)
 
 
 def log(severity, message, **fields):
@@ -69,10 +75,17 @@ def main() -> None:
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
+    test = snap.metrics["test"]
     data = {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "model": {"version": snap.version, "promoted_at": snap.production["promoted_at"],
-                  "validation_score": snap.production["validation_score"]},
+                  "validation_score": snap.production["validation_score"],
+                  "previous_version": snap.production.get("previous_version"),
+                  "architecture": snap.metrics["model"]["architecture"],
+                  # mêmes champs que GET /model : la page lit l'un ou l'autre sans distinction
+                  "test_metrics": {s: {"mae": clean(test["mae"][s]),
+                                       "baseline_mae": clean(test["baseline_mae"][s]),
+                                       "gain_pct": clean(test["gain_pct"][s])} for s in test["mae"]}},
         "players": sorted(players, key=lambda p: p["player_name"]),
     }
     (out / "data.json").write_text(json.dumps(data, ensure_ascii=False))
@@ -82,6 +95,12 @@ def main() -> None:
     (out / "index.html").write_text(page)
     (out / ".nojekyll").write_text("")          # GitHub Pages : servir les fichiers tels quels
     print(f"{len(players)} joueurs exportés dans {out}/ (coût des nouvelles explications : {total_cost:.4f} €)")
+
+    # Tableau prêt à coller dans la section "Results" du README.
+    print("\n| Stat | Model MAE | Baseline MAE | Gain |\n|---|---:|---:|---:|")
+    for s, m in data["model"]["test_metrics"].items():
+        cell = lambda v, f, unit="": "—" if v is None else format(v, f) + unit
+        print(f"| {s} | {cell(m['mae'], '.2f')} | {cell(m['baseline_mae'], '.2f')} | {cell(m['gain_pct'], '+.0f', ' %')} |")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,29 @@
+# Useless in the images
+.git
+.gitignore
+.github
+.venv
+venv
+env
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.ipynb_checkpoints
+.vscode
+.idea
+
+# Datas and results
+collector/data
+artifacts
+
+# Local C++ build C++
+model/build
+model/bin
+
+# Useless for execution
+collector/*.ipynb
+collector/sandbox.py
+tests
+__old_ver
+*.md
+docker-compose.yml

@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+
+# Environnements virtuels
+.venv/
+venv/
+env/
+.env
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Tests et outils
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# IDE
+.vscode/
+.idea/
+
+# Logs et fichiers temporaires
+*.log
+*.tmp
+
+# Données (regénérables avec python -m collector fetch / build)
+collector/data/
+collector/sandbox.py
+
+# Build C++
+model/build/
+model/bin/
+
+artifacts/
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log.env.gcp

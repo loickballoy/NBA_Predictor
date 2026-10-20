@@ -231,9 +231,15 @@ class Explainer:
             error, expl, text = None, None, ""
             usage_in = usage_out = 0
             try:
-                resp = self.client.messages.create(model=self.model, max_tokens=1024,
+                # Haiku 5.5 réfléchit par défaut et ces tokens comptent dans max_tokens :
+                # 1024 suffisait à peine à la réflexion, le JSON n'arrivait jamais.
+                # Effort bas : la tâche est simple, et c'est moins cher.
+                resp = self.client.messages.create(model=self.model, max_tokens=16000,
+                                                   output_config={"effort": "low"},
                                                    system=SYSTEM_PROMPT, messages=messages)
                 usage_in, usage_out = resp.usage.input_tokens, resp.usage.output_tokens
+                if getattr(resp, "stop_reason", None) == "max_tokens":
+                    raise ValueError("réponse tronquée (max_tokens atteint)")
                 text = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text")
                 expl = _parse(text)
                 bad = unknown_numbers(expl, facts)

@@ -44,4 +44,4 @@ artifacts/
 *.tfstate
 *.tfstate.*
 *.tfplan
-crash.log
+crash.log.env.gcp

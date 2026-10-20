@@ -10,6 +10,7 @@ locals {
     "iam.googleapis.com",
     "run.googleapis.com",
     "cloudscheduler.googleapis.com",
+    "iap.googleapis.com",
   ]
 }
 

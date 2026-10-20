@@ -73,6 +73,11 @@ variable "api_image" {
   description = "Image de l'API ; vide = même image que le job"
 }
 
+variable "iap_users" {
+  type        = list(string)
+  description = "Comptes autorisés à ouvrir l'API, ex. [\"user:moi@gmail.com\"]"
+}
+
 locals {
   common_labels = {
     project    = "nba-mlops"

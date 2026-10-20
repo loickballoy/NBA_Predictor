@@ -395,7 +395,8 @@ let staticData = null;
 
 async function api(path) {
   if (!DATA_URL) return getJSON(path);
-  staticData ??= await getJSON(DATA_URL);
+  // no-cache : revalidé à chaque visite, sinon un nouvel export reste invisible ~10 min (cache de Pages).
+  staticData ??= await getJSON(DATA_URL, { cache: "no-cache" });
   if (path === "/players") {
     return staticData.players.map(({ player_id, player_name }) => ({ player_id, player_name }));
   }
@@ -407,8 +408,8 @@ async function api(path) {
   return { source: p.explanation.source, cost_eur: 0, cached: true, explanation: p.explanation };
 }
 
-async function getJSON(url) {
-  const r = await fetch(url, { credentials: "same-origin" });
+async function getJSON(url, options = {}) {
+  const r = await fetch(url, { credentials: "same-origin", ...options });
   if (!r.ok) {
     let detail = `Erreur ${r.status}`;
     try { detail = (await r.json()).detail || detail; } catch (_) {}
@@ -522,7 +523,13 @@ function renderFeatured(players) {
   let picks;
   if (staticData) {
     const minutes = (p) => p.stats.MIN_PER_GAME?.last_season ?? 0;
-    picks = [...staticData.players].sort((a, b) => minutes(b) - minutes(a)).slice(0, 6);
+    // 6 joueurs au hasard parmi les 40 qui jouent le plus : connus, mais pas toujours les mêmes.
+    const pool = [...staticData.players].sort((a, b) => minutes(b) - minutes(a)).slice(0, 40);
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    picks = pool.slice(0, 6);
   } else {
     picks = FAMOUS.map((n) => players.find((p) => p.player_name === n)).filter(Boolean);
   }

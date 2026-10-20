@@ -34,7 +34,7 @@ PRODUCTION = "models/production.json"
 
 
 def log(severity: str, message: str, **fields) -> None:
-    print(json.dumps({"severity": severity, "message": message, "component": "trainer", **fields}), flush=True)
+    print(json.dumps({"severity": severity, "message": message, "component": "trainer", **fields}, ensure_ascii=False), flush=True)
 
 
 @dataclass
@@ -178,8 +178,13 @@ def main() -> int:
             pred_csv = work / "inference_predictions.csv"
             run([cfg.predict_bin, "--model", candidate, "--input", processed / "inference.csv",
                  "--output", pred_csv])
+            # Prédictions + les 3 saisons d'entrée : l'API (et /explain) a tout dans un seul fichier.
+            pred = pd.read_csv(pred_csv)
+            inputs = pd.read_csv(processed / "inference.csv")
+            ids = [c for c in pred.columns if c.startswith("id_")]
+            pred = pred.merge(inputs, on=ids, how="left", validate="one_to_one")
             pred_parquet = work / f"{version}.parquet"
-            pd.read_csv(pred_csv).to_parquet(pred_parquet, index=False)
+            pred.to_parquet(pred_parquet, index=False)
             storage.upload(pred_parquet, f"predictions/{version}.parquet")
 
             storage.write_json(PRODUCTION, {

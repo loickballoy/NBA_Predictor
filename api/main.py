@@ -3,23 +3,31 @@ API de prédiction : `uvicorn api.main:app --host 0.0.0.0 --port 8080`
 
   GET /health                      sonde de disponibilité (ne touche pas au bucket)
   GET /model                       modèle en production : version, date, métriques
+  GET /players                     joueurs qui ont une prédiction (id, nom)
   GET /players/{id}/prediction     prédiction de la saison prochaine pour un joueur
+  GET /players/{id}/explain        explication de cette prédiction par Claude
+  GET /                            page web de consultation des prédictions
 """
 import json
 import math
 import os
 import time
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse
 from nba_api.stats.static import players as nba_players
 
-from api.schemas import Health, ModelInfo, PlayerPrediction, StatMetrics, StatPrediction
+from api.explain import Explainer, build_facts
+from api.schemas import (ExplanationBody, ExplanationResponse, Health, ModelInfo, PlayerPrediction,
+                         PlayerSummary, StatMetrics, StatPrediction)
 from api.store import ModelStore
 
 store = ModelStore(os.environ.get("STORAGE_URI", "file:///tmp/nba-bucket"),
                    refresh_seconds=float(os.environ.get("REFRESH_SECONDS", 300)))
 
 app = FastAPI(title="NBA Predictor", version="1.0")
+_explainer = None
 
 
 def log(severity: str, message: str, **fields) -> None:
@@ -57,6 +65,33 @@ def clean(v):
     return None if v is None or (isinstance(v, float) and math.isnan(v)) else float(v)
 
 
+def get_explainer() -> Explainer:
+    """Créé au premier appel : sans clé API, l'explainer répond avec le repli sans IA."""
+    global _explainer
+    if _explainer is None:
+        client = None
+        if os.environ.get("ANTHROPIC_API_KEY"):
+            import anthropic
+            client = anthropic.Anthropic()
+        _explainer = Explainer(client, store.storage, log,
+                               model=os.environ.get("LLM_MODEL", "claude-haiku-5-5"))
+    return _explainer
+
+
+STATIC = Path(__file__).resolve().parent / "static"
+_names_cache = {}
+
+
+def player_name(player_id: int):
+    info = nba_players.find_player_by_id(player_id)   # base locale de nba_api : aucun appel réseau
+    return info["full_name"] if info else None
+
+
+@app.get("/", include_in_schema=False)
+def index():
+    return FileResponse(STATIC / "index.html")
+
+
 @app.get("/health", response_model=Health)
 def health():
     return Health(status="ok")
@@ -79,6 +114,17 @@ def model(request: Request):
     )
 
 
+@app.get("/players", response_model=list[PlayerSummary])
+def list_players(request: Request):
+    snap = snapshot(request)
+    if snap.version not in _names_cache:          # calculé une fois par version du modèle
+        rows = [PlayerSummary(player_id=int(i), player_name=player_name(int(i)) or f"Joueur {int(i)}")
+                for i in snap.predictions.index]
+        _names_cache.clear()
+        _names_cache[snap.version] = sorted(rows, key=lambda p: p.player_name)
+    return _names_cache[snap.version]
+
+
 @app.get("/players/{player_id}/prediction", response_model=PlayerPrediction)
 def prediction(player_id: int, request: Request):
     snap = snapshot(request)
@@ -88,13 +134,29 @@ def prediction(player_id: int, request: Request):
     row = snap.predictions.loc[player_id]
     year = int(row["id_TARGET_YEAR"])
     stats = [c[: -len("_pred")] for c in snap.predictions.columns if c.endswith("_pred")]
-    info = nba_players.find_player_by_id(player_id)   # base locale de nba_api : aucun appel réseau
-
     return PlayerPrediction(
         player_id=player_id,
-        player_name=info["full_name"] if info else None,
+        player_name=player_name(player_id),
         season=f"{year}-{str(year + 1)[2:]}",
         model_version=snap.version,
         stats={s: StatPrediction(predicted=round(float(row[f"{s}_pred"]), 2),
                                  last_season=clean(row.get(f"{s}_last"))) for s in stats},
+    )
+
+
+@app.get("/players/{player_id}/explain", response_model=ExplanationResponse)
+def explain(player_id: int, request: Request):
+    snap = snapshot(request)
+    if player_id not in snap.predictions.index:
+        raise HTTPException(status_code=404, detail="Joueur sans prédiction")
+    row = snap.predictions.loc[player_id]
+    if "x_s3_PTS_PER_GAME" not in row:
+        raise HTTPException(status_code=409, detail="Prédictions sans saisons d'entrée : relance le job")
+    name = player_name(player_id)
+    facts = build_facts(row, name, player_id)
+    result = get_explainer().explain(snap.version, player_id, facts)
+    return ExplanationResponse(
+        player_id=player_id, player_name=name, season=facts["saison_projetee"], model_version=snap.version,
+        source=result.source, llm_model=result.llm_model, cost_eur=round(result.cost_eur, 6),
+        explanation=ExplanationBody(**result.explanation.model_dump()),
     )

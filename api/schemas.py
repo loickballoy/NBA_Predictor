@@ -28,9 +28,31 @@ class StatPrediction(BaseModel):
     last_season: Optional[float] = Field(description="Valeur de la dernière saison (la baseline)")
 
 
+class PlayerSummary(BaseModel):
+    player_id: int
+    player_name: str
+
+
 class PlayerPrediction(BaseModel):
     player_id: int
     player_name: Optional[str]
     season: str = Field(description="Saison prédite, ex. 2026-27")
     model_version: str
     stats: Dict[str, StatPrediction]
+
+
+class ExplanationBody(BaseModel):
+    resume: str
+    facteurs: List[str]
+    prudence: str
+
+
+class ExplanationResponse(BaseModel):
+    player_id: int
+    player_name: Optional[str]
+    season: str
+    model_version: str
+    source: str = Field(description="claude, cache ou fallback (explication sans IA)")
+    llm_model: Optional[str]
+    cost_eur: float = Field(description="Coût de cette requête ; 0 si servie depuis le cache")
+    explanation: ExplanationBody

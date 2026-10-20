@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Projections NBA 2026-27</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --court: #D9E2EC;
+    --surface: #FFFFFF;
+    --ink: #13294B;
+    --slate: #5B6B82;
+    --line: #B8C6D6;
+    --ball: #F2711C;
+    --ball-ink: #B4500F;
+    --up: #1F7A4D;
+    --down: #B4322A;
+    --display: "Big Shoulders Display", "Arial Narrow", Impact, sans-serif;
+    --body: "Barlow", "Segoe UI", system-ui, sans-serif;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --court: #0F1F38;
+      --surface: #172B4D;
+      --ink: #E6EDF5;
+      --slate: #9AACC4;
+      --line: #2E4670;
+      --ball-ink: #FF9A57;
+      --up: #5CC793;
+      --down: #F07A70;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  body {
+    margin: 0;
+    background: var(--court);
+    color: var(--ink);
+    font: 400 1rem/1.55 var(--body);
+    padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px);
+  }
+  main { max-width: 60rem; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+
+  header h1 {
+    font: 800 clamp(1.6rem, 4vw, 2.2rem)/1 var(--display);
+    margin: 0 0 1.25rem;
+    letter-spacing: 0.01em;
+  }
+  form { display: flex; gap: 0.5rem; }
+  input[type="search"] {
+    flex: 1; min-width: 0;
+    font: 500 1.05rem var(--body);
+    color: var(--ink);
+    background: var(--surface);
+    border: 2px solid var(--line);
+    border-radius: 0.5rem;
+    padding: 0.7rem 0.9rem;
+  }
+  button {
+    font: 600 1rem var(--body);
+    color: #fff;
+    background: var(--ink);
+    border: 0;
+    border-radius: 0.5rem;
+    padding: 0 1.2rem;
+    cursor: pointer;
+  }
+  @media (prefers-color-scheme: dark) { button { color: var(--court); } }
+  input:focus-visible, button:focus-visible { outline: 3px solid var(--ball); outline-offset: 2px; }
+
+  .message { margin: 2.5rem 0; color: var(--slate); max-width: 34rem; }
+  .message.error { color: var(--down); }
+
+  .player { display: grid; grid-template-columns: 15rem 1fr; gap: 2rem; margin-top: 2.5rem; align-items: start; }
+  /* La raquette : la zone peinte sous le panier, avec l'arc de lancer franc en haut. */
+  .lane {
+    background: var(--ink);
+    border-radius: 7.5rem 7.5rem 0.5rem 0.5rem;
+    padding-top: 1.5rem;
+    overflow: hidden;
+    aspect-ratio: 3 / 3.4;
+    display: flex; align-items: flex-end; justify-content: center;
+  }
+  .lane img { width: 108%; max-width: none; display: block; }
+  .lane .initials { font: 800 4.5rem/1 var(--display); color: var(--court); margin: auto; }
+
+  .identity h2 {
+    font: 800 clamp(2.6rem, 7vw, 4.4rem)/0.92 var(--display);
+    margin: 0 0 0.6rem;
+  }
+  .identity p { margin: 0; color: var(--slate); }
+
+  .stats { list-style: none; margin: 1.75rem 0 0; padding: 0; }
+  .stat {
+    display: grid;
+    grid-template-columns: 9.5rem 1fr 7rem;
+    gap: 1rem;
+    align-items: center;
+    padding: 0.7rem 0;
+    border-top: 1px solid var(--line);
+  }
+  .stat:last-child { border-bottom: 1px solid var(--line); }
+  .stat .label { font-weight: 500; }
+  .track { position: relative; height: 0.5rem; background: var(--line); border-radius: 1rem; }
+  .fill { position: absolute; inset: 0 auto 0 0; background: var(--ball); border-radius: 1rem; }
+  .tick {
+    position: absolute; top: 50%; width: 0.9rem; height: 0.9rem;
+    transform: translate(-50%, -50%);
+    border: 2px solid var(--ink); background: var(--surface); border-radius: 50%;
+  }
+  .values { text-align: right; line-height: 1.15; }
+  .values .pred { font: 800 1.7rem/1 var(--display); color: var(--ball-ink); display: block; }
+  .values .delta { font-size: 0.85rem; color: var(--slate); white-space: nowrap; }
+  .delta.up { color: var(--up); }
+  .delta.down { color: var(--down); }
+
+  .legend { display: flex; gap: 1.5rem; margin-top: 1rem; font-size: 0.9rem; color: var(--slate); flex-wrap: wrap; }
+  .legend span { display: inline-flex; align-items: center; gap: 0.45rem; }
+  .legend i { display: inline-block; width: 0.9rem; height: 0.9rem; border-radius: 50%; }
+  .legend .l-pred { background: var(--ball); }
+  .legend .l-last { border: 2px solid var(--ink); background: var(--surface); }
+
+  .explain { margin-top: 2.25rem; padding-top: 1.5rem; border-top: 2px solid var(--ink); }
+  .explain h3 { font: 800 1.6rem/1.1 var(--display); margin: 0 0 0.75rem; }
+  .explain p, .explain li { max-width: 40rem; color: var(--ink); }
+  .explain ul { padding-left: 1.2rem; margin: 0.75rem 0; }
+  .explain .caution { color: var(--slate); font-style: italic; }
+  .explain p.provenance { font-size: 0.85rem; color: var(--slate); margin-top: 1rem; }
+  .explain button { padding: 0.65rem 1.1rem; }
+  .demo-note { margin: 1rem 0 0; font-size: 0.95rem; color: var(--slate); max-width: 44rem; }
+  .demo-note a { color: inherit; }
+
+  footer { margin-top: 3rem; font-size: 0.85rem; color: var(--slate); }
+
+  @media (max-width: 40rem) {
+    .player { grid-template-columns: 1fr; gap: 1.25rem; }
+    .lane { max-width: 13rem; }
+    form { flex-direction: column; }
+    button { padding: 0.75rem 1.2rem; }
+    .stat { grid-template-columns: 1fr auto; }
+    .stat .track { grid-column: 1 / -1; grid-row: 2; }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .fill, .tick { transition: width 0.45s ease, left 0.45s ease; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Projections NBA 2026-27</h1>
+    <form id="search" role="search">
+      <label for="q" class="sr-only" style="position:absolute;left:-9999px">Joueur</label>
+      <input id="q" type="search" list="players" placeholder="Nom d'un joueur, par exemple LeBron James" autocomplete="off" required>
+      <datalist id="players"></datalist>
+      <button type="submit">Voir la projection</button>
+    </form>
+    <p id="demo-note" class="demo-note" hidden></p>
+  </header>
+
+  <p id="message" class="message">Chargement de la liste des joueurs…</p>
+  <section id="result" hidden aria-live="polite"></section>
+
+  <footer id="footer"></footer>
+</main>
+
+<script>
+const LABELS = {
+  GP: "Matchs joués", MIN_PER_GAME: "Minutes", PTS_PER_GAME: "Points",
+  REB_PER_GAME: "Rebonds", AST_PER_GAME: "Passes décisives", STL_PER_GAME: "Interceptions",
+  BLK_PER_GAME: "Contres", TOV_PER_GAME: "Balles perdues",
+};
+// Pour ces stats, une baisse est une bonne nouvelle.
+const LOWER_IS_BETTER = new Set(["TOV_PER_GAME"]);
+
+const byName = new Map();
+const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const $ = (id) => document.getElementById(id);
+
+function showMessage(text, isError = false) {
+  $("message").textContent = text;
+  $("message").className = "message" + (isError ? " error" : "");
+  $("message").hidden = false;
+}
+
+// Mode démo statique (GitHub Pages) : la page lit data.json au lieu d'appeler l'API.
+const DATA_URL = document.querySelector('meta[name="nba-data"]')?.content || null;
+let staticData = null;
+
+async function api(path) {
+  if (!DATA_URL) return getJSON(path);
+  staticData ??= await getJSON(DATA_URL);
+  if (path === "/players") {
+    return staticData.players.map(({ player_id, player_name }) => ({ player_id, player_name }));
+  }
+  const [, id, kind] = path.match(/^\/players\/(\d+)\/(prediction|explain)$/);
+  const p = staticData.players.find((x) => x.player_id === Number(id));
+  if (!p) throw new Error("Ce joueur n'a pas de projection dans la démo.");
+  if (kind === "prediction") return p;
+  return { source: p.explanation.source, cost_eur: 0, cached: true, explanation: p.explanation };
+}
+
+async function getJSON(url) {
+  const r = await fetch(url, { credentials: "same-origin" });
+  if (!r.ok) {
+    let detail = `Erreur ${r.status}`;
+    try { detail = (await r.json()).detail || detail; } catch (_) {}
+    throw new Error(detail);
+  }
+  return r.json();
+}
+
+function fmt(stat, v) {
+  return stat === "GP" ? Math.round(v).toString() : v.toFixed(1).replace(".", ",");
+}
+
+function initials(name) {
+  return name.split(" ").map((w) => w[0]).slice(0, 2).join("");
+}
+
+function render(p) {
+  const name = esc(p.player_name || `Joueur ${p.player_id}`);
+  const rows = Object.entries(p.stats).map(([stat, s]) => {
+    const last = s.last_season;
+    const max = stat === "GP" ? 82 : Math.max(s.predicted, last ?? 0) * 1.25 || 1;
+    const pct = (v) => Math.min(100, Math.max(0, (v / max) * 100));
+    let delta = "";
+    if (last !== null) {
+      const d = s.predicted - last;
+      if (fmt(stat, Math.abs(d)) === fmt(stat, 0)) {
+        delta = `<span class="delta">stable vs ${fmt(stat, last)}</span>`;
+      } else {
+        const good = LOWER_IS_BETTER.has(stat) ? d < 0 : d > 0;
+        const sign = d > 0 ? "+" : "−";
+        delta = `<span class="delta ${good ? "up" : "down"}">${sign}${fmt(stat, Math.abs(d))} vs ${fmt(stat, last)}</span>`;
+      }
+    }
+    return `
+      <li class="stat">
+        <span class="label">${LABELS[stat] || stat}</span>
+        <span class="track" aria-hidden="true">
+          <span class="fill" style="width:${pct(s.predicted)}%"></span>
+          ${last !== null ? `<span class="tick" style="left:${pct(last)}%"></span>` : ""}
+        </span>
+        <span class="values"><span class="pred">${fmt(stat, s.predicted)}</span>${delta}</span>
+      </li>`;
+  }).join("");
+
+  $("result").innerHTML = `
+    <article class="player">
+      <div class="lane">${DATA_URL
+        ? `<span class="initials">${initials(name)}</span>`
+        : `<img src="https://cdn.nba.com/headshots/nba/latest/1040x760/${p.player_id}.png"
+             alt="Photo de ${name}" width="1040" height="760"
+             onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'initials',textContent:'${initials(name).replace(/[^\p{L}]/gu, "")}'}))">`}
+      </div>
+      <div class="identity">
+        <h2>${name}</h2>
+        <p>Projection par match pour la saison ${p.season}, comparée à sa saison passée.</p>
+        <ul class="stats">${rows}</ul>
+        <div class="legend">
+          <span><i class="l-pred"></i>Projection ${p.season}</span>
+          <span><i class="l-last"></i>Saison passée</span>
+        </div>
+        <section class="explain" id="explain">
+          <h3>Pourquoi cette projection ?</h3>
+          <button type="button" id="explain-btn">Expliquer avec Claude</button>
+        </section>
+      </div>
+    </article>`;
+  $("explain-btn").addEventListener("click", () => showExplanation(p.player_id));
+  if (DATA_URL) showExplanation(p.player_id);
+  $("result").hidden = false;
+  $("message").hidden = true;
+  $("footer").textContent = `Modèle en production : ${p.model_version}. Les matchs joués sont un total sur la saison.`;
+}
+
+async function showExplanation(id) {
+  const box = $("explain");
+  const btn = $("explain-btn");
+  if (btn) { btn.disabled = true; btn.textContent = "Rédaction en cours…"; }
+  try {
+    const r = await api(`/players/${id}/explain`);
+    const e = r.explanation;
+    let provenance = r.source === "fallback"
+      ? "Résumé automatique sans IA, construit uniquement à partir des données ci-dessus."
+      : "Rédigé par Claude à partir des seules données ci-dessus. Chaque chiffre cité est vérifié automatiquement.";
+    if (!DATA_URL) {
+      provenance += r.source === "cache" ? " Servi depuis le cache." :
+        r.cost_eur > 0 ? ` Coût de cet appel : ${r.cost_eur.toFixed(5).replace(".", ",")} €.` : "";
+    }
+    box.innerHTML = `<h3>Pourquoi cette projection ?</h3>
+      <p>${esc(e.resume)}</p>
+      <ul>${e.facteurs.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>
+      <p class="caution">${esc(e.prudence)}</p>
+      <p class="provenance">${provenance}</p>`;
+  } catch (err) {
+    box.innerHTML = `<h3>Pourquoi cette projection ?</h3><p class="message error">${esc(err.message)}</p>`;
+  }
+}
+
+async function showPlayer(id) {
+  try {
+    render(await api(`/players/${id}/prediction`));
+    history.replaceState(null, "", `#${id}`);
+  } catch (e) {
+    $("result").hidden = true;
+    showMessage(e.message, true);
+  }
+}
+
+$("search").addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  const q = $("q").value.trim();
+  const id = byName.get(q.toLowerCase()) ?? (/^\d+$/.test(q) ? Number(q) : null);
+  if (id === null) {
+    showMessage(`Aucun joueur nommé « ${q} » n'a de projection. Choisis un nom dans la liste.`, true);   // textContent : pas d'injection
+    return;
+  }
+  showPlayer(id);
+});
+
+(async () => {
+  try {
+    const players = await api("/players");
+    if (DATA_URL) {
+      const m = staticData.model;
+      $("demo-note").innerHTML = `Démo publique : instantané du modèle <code>${esc(m.version)}</code>, `
+        + `exporté le ${new Date(staticData.generated_at).toLocaleDateString("fr-FR")}. La plateforme complète `
+        + `tourne sur Google Cloud, derrière une authentification. `
+        + `<a href="https://github.com/loickballoy/NBA_Predictor">Code source et architecture</a>`;
+      $("demo-note").hidden = false;
+    }
+    const list = $("players");
+    for (const p of players) {
+      byName.set(p.player_name.toLowerCase(), p.player_id);
+      list.append(new Option(p.player_name, p.player_name));
+    }
+    showMessage(`${players.length} joueurs ont une projection. Tape un nom pour commencer.`);
+    const fromHash = Number(location.hash.slice(1));
+    if (fromHash) showPlayer(fromHash);
+  } catch (e) {
+    showMessage(`Impossible de charger les joueurs : ${e.message}`, true);
+  }
+})();
+</script>
+</body>
+</html>

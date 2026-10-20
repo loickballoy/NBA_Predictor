@@ -83,3 +83,15 @@ def test_promotion_is_picked_up_without_restart(client, bucket):
         {**prod, "version": new, "predictions": f"predictions/{new}.parquet"}))
 
     assert client.get("/model").json()["version"] == new   # refresh_seconds=0 : relu à chaque appel
+
+
+def test_players_list_contains_only_predicted_players(client, bucket):
+    preds = pd.read_parquet(bucket / production(bucket)["predictions"])
+    body = client.get("/players").json()
+    assert {p["player_id"] for p in body} == set(preds["id_PLAYER_ID"])
+    assert body == sorted(body, key=lambda p: p["player_name"])
+
+
+def test_web_page_is_served(client):
+    r = client.get("/")
+    assert r.status_code == 200 and "Projections NBA" in r.text

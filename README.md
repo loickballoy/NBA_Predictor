@@ -50,18 +50,20 @@ More detail in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Results
 
-MAE on the test seasons, compared with the baseline "the player repeats last season exactly". Lower MAE is better; the gain is how much error the model removes compared with the baseline.
+MAE on the test seasons (2023 onwards), model version `20261020-121122-259e458`.
 
-<!-- Replace with the table printed at the end of `python -m demo.export` -->
 | Stat | Model MAE | Baseline MAE | Gain |
 |---|---:|---:|---:|
-| Points | — | — | — |
-| Rebounds | — | — | — |
-| Assists | — | — | — |
-| Minutes | — | — | — |
-| Games played | — | — | — |
+| Points | 2.37 | 2.47 | 4.2 % |
+| Rebounds | 0.86 | 0.83 | −3.2 % |
+| Assists | 0.64 | 0.69 | 6.5 % |
+| Steals | 0.19 | 0.21 | 11.5 % |
+| Blocks | 0.15 | 0.16 | 5.6 % |
+| Turnovers | 0.32 | 0.34 | 7.7 % |
+| Minutes | 3.69 | 3.87 | 4.8 % |
+| Games played | 15.1 | 16.7 | 9.3 % |
 
-The demo page shows the same numbers for the model that's currently live.
+The model beats the baseline on 7 of 8 stats; rebounds is the exception.
 
 ## Running it locally
 
